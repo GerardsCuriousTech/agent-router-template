@@ -31,9 +31,14 @@
 
   // OPTIONAL. Default GitHub PAT used for any repo that does not set its own
   // token below. Token resolution per repo is: repos[i].token ->
-  // defaultGithubToken -> error if neither is set. Needs Contents RW +
+  // defaultGithubToken -> error if neither is set. MUST carry Contents RW +
   // Pull requests RW + Commit statuses/Checks read (fine-grained), or the
-  // classic "repo" scope.
+  // classic "repo" scope. This is load-bearing: per prompts/agent-router.md the
+  // agent HALTS on the first 401/403 and does NOT route around it (no
+  // token-in-URL, no alternate write path), so a token missing write scope
+  // stalls every session until a human fixes it. If a shared default token
+  // lacks write on a given repo, set a per-repo `token` below with the right
+  // scope rather than relying on this default.
   "defaultGithubToken": "ENV:GITHUB_TOKEN",
 
   // OPTIONAL. Minimum seconds between wakes for the same PR. Default: 60.
