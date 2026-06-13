@@ -27,7 +27,14 @@ WORKDIR="$HOME/agent-runs/$(date +%Y%m%d-%H%M%S)-<repo>"
 mkdir -p "$WORKDIR" && cd "$WORKDIR"
 git clone https://github.com/<owner>/<repo>.git
 cd <repo>
+gh auth setup-git   # point git's HTTPS credential at the session token agent-router provides
 ```
+
+The agent's GitHub token is provisioned by agent-router. The agent MUST NOT add, replace, or
+edit Git credentials or credential helpers beyond the single `gh auth setup-git` above (see
+the auth rule in §8). If a commit fails with "Author identity unknown", the agent MAY set the
+commit identity with `git config user.name` / `git config user.email` (a bot identity) — that
+is a local commit identity, not a credential, and is the only git-config change permitted.
 
 The agent MUST read `AGENTS.md` and `CLAUDE.md` in the repository root **before writing any
 code**. These define the project's conventions, the branch model, the post-back CI contract,
@@ -170,9 +177,15 @@ second PR, or continue working in the same session.
   report the missing dependency in a PR comment or session message. The agent MUST NOT
   attempt to bootstrap a toolchain via conda, snap, brew, or any other user-space package
   manager.
-- **Auth failures.** If `git push`, `gh pr create`, or any `gh` call fails with an
-  authentication error, the agent MUST stop and report it. The agent MUST NOT attempt to
-  fix or rotate credentials.
+- **Auth failures — stop on the FIRST one; never route around them.** If `git push`,
+  `gh pr create`, or any GitHub write fails with a `401`/`403`/permission error, the agent
+  MUST stop on the **first** failure and report it. The agent MUST NOT retry with a different
+  token, account, or remote; MUST NOT put a token in the clone/push URL; MUST NOT edit Git
+  credentials or credential helpers (beyond the one `gh auth setup-git` in §1); and MUST NOT
+  attempt any alternate write path (the GitHub REST contents/git-data API, `gh api`
+  tree/commit creation, a fork, etc.) to get the change in. The session token is provisioned
+  by agent-router and a denial is authoritative — halt and report so a human can fix the
+  token's scope; do not work around it.
 - **CI divergence.** If the agent cannot get CI green after a reasonable number of cycles,
   it MUST post a PR comment summarizing the blocker and stop. It MUST NOT thrash with
   speculative pushes.
